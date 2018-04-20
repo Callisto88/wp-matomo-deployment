@@ -213,13 +213,12 @@ for line in vhostsList:
 
       # Open index.php file in vhost web root directory
       # _> find out wordpress install path
-      findCmd = 'grep -h --color /var/www/vhosts/'+fqdn+'/web/index.php -e "/wp-blog-header.php" 2>/dev/null'
+      findCmd = 'grep -h --color /var/www/vhosts/' + fqdn + '/web/index.php -e "/wp-blog-header.php" 2>/dev/null'
 
       # 2. Follow the link
       # Typical output
       # require( dirname( __FILE__ ) . '/2017/wp-blog-header.php' );
-      # require( dirname( __FILE__ ) . '/__new/wp-blog-header.php' );
-      # require( dirname( __FILE__ ) . '/ru/wp-blog-header.php' );
+      # ...
       # require( dirname( __FILE__ ) . '/site/wp-blog-header.php' );
       # require( dirname( __FILE__ ) . '/wp-blog-header.php' );
 
@@ -227,6 +226,7 @@ for line in vhostsList:
       entryPointLines = s.read().splitlines()
 
       # \s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);
+      # Parse command output
       pattern = "\s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);"
       for line in entryPointLines:
           matchObj = re.match(pattern, line, flags=0)
