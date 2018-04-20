@@ -210,8 +210,29 @@ for line in vhostsList:
       s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
       output = s.read()
 
-      # 1. Open index.php file in vhost web root directory
+
+      # Open index.php file in vhost web root directory
+      # _> find out wordpress install path
+      findCmd = 'grep -h --color /var/www/vhosts/'+fqdn+'/web/index.php -e "/wp-blog-header.php" 2>/dev/null'
+
       # 2. Follow the link
+      # Typical output
+      # require( dirname( __FILE__ ) . '/2017/wp-blog-header.php' );
+      # require( dirname( __FILE__ ) . '/__new/wp-blog-header.php' );
+      # require( dirname( __FILE__ ) . '/ru/wp-blog-header.php' );
+      # require( dirname( __FILE__ ) . '/site/wp-blog-header.php' );
+      # require( dirname( __FILE__ ) . '/wp-blog-header.php' );
+
+      s = subprocess.Popen([findCmd], stdout=subprocess.PIPE, shell=True).stdout
+      entryPointLines = s.read().splitlines()
+
+      # \s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);
+      pattern = "\s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);"
+      for line in entryPointLines:
+          matchObj = re.match(pattern, line, flags=0)
+          if matchObj:
+              print(matchObj.group(2))
+
 
       # Move file to destination
       #cmd = "sudo cp " + OUTPUT_FILE + " " + "/var/www/vhosts/" + fqdn + "/httpdocs/" + WP_PLUGINS_DIR + PIWIK_PLUGIN_CONFIG_FILENAME
