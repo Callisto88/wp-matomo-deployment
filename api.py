@@ -15,6 +15,10 @@ from grp import getgrgid
 # Config file
 import config
 
+# TODO : move all config param in config.py
+# TODO : factorize redundant code parts
+# TODO : replace hard-coded paths with vars
+
 # Some constants
 DRY_MODE = False
 LOGIN_LENGTH = 8
