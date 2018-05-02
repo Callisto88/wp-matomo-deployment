@@ -1,3 +1,5 @@
+import os
+from stat import *
 import json
 import random
 import re
@@ -7,6 +9,8 @@ import subprocess
 import sys
 import hashlib
 from time import sleep
+from pwd import getpwuid
+from grp import getgrgid
 
 # Config file
 import config
@@ -39,14 +43,12 @@ response = requests.get(query)
 jsonString = response.content
 siteList = json.loads(jsonString)
 
-#if siteList['result'] == 'error':
-#    print(siteList['message'])
-#    exit(1)
-
 print("======================")
 print("Following websites are already registered in Matomo : ")
 for site in siteList:
     print(site["name"] + " => " + site["main_url"])
+    # ss = site["main_url"].encode('utf8')
+    # siteNameList.append(ss)
 print("======================")
 
 # For file use
@@ -56,9 +58,11 @@ print("======================")
 for line in vhostsList:
 
   if line[0:3] == "www." in line:
+      url = line
       fqdn = line[4:len(line)]
   else:
       fqdn = line
+      url = 'www.' + line
 
       print("\n[ "+fqdn+" ]")
 
@@ -77,15 +81,19 @@ for line in vhostsList:
       #                      currency='', group='', startDate='', excludedUserAgents='', keepURLFragments='', type='',
       #                      settingValues='', excludeUnknownUrls='')
 
-      # Site part
-      url = 'www.'+fqdn
-
       # Adding website returns its ID
       query = config.PIWIK_URL + "?module=API&method=SitesManager.addSite&siteName="+url+"&urls="+url+"&format=json&token_auth=" + config.TOKEN
       sys.stdout.write("Adding site to Matomo : ")
       if not DRY_MODE:
-          if url in siteList:
-              print(url + " already exists in Matomo")
+
+          found = False
+          for site in siteList:
+              regex = r".*\b(?=\w)" + re.escape(fqdn) + r"\b(?!\w).*"
+              if re.search(regex, site['name'], re.IGNORECASE) or re.search(regex, site['main_url'], re.IGNORECASE):
+                  found = True
+                  print(url + " already exists in Matomo")
+
+          if found == True:
               break
 
           # Register new website
@@ -114,8 +122,7 @@ for line in vhostsList:
                   exit(1)
 
           else:
-              print("Unable to get site ID from URL [ " + siteData[
-                  'urls'] + " ] Status code : " + response.status_code)
+              print("Unable to get site ID from URL [ " + url + " ] Status code : " + response.status_code)
               exit(1)
 
       else:
@@ -188,10 +195,60 @@ for line in vhostsList:
 
       with open(PIWIK_PLUGIN_CONFIG_FILENAME) as infile, open(OUTPUT_FILE, 'w') as outfile:
           for line in infile:
+
+              # Setup connections & auth stuff
               line = re.sub(r"'piwik_token'\s?=>\s?'',", "'piwik_token' => '"+userToken+"',", line)
-              line = re.sub(r"'piwik_url'\s?=>\s?'',", "'piwik_url' => '"+config.PIWIK_URL+"',", line)
+              line = re.sub(r"'piwik_url'\s?=>\s?'',", "'piwik_url' => '"+os.path.dirname(config.PIWIK_URL)+"/',", line)
               line = re.sub(r"'piwik_user'\s?=>\s?'',", "'piwik_user' => '"+login+"',", line)
+
+              # 'default_date' => 'yesterday',
+              line = re.sub(r"'default_date'\s?=>\s?'',", "'default_date' => 'current_month',", line)
+
+              # last30
+              line = re.sub(r"'dashboard_widget'\s?=>\s?'',", "'dashboard_widget' => 'true',", line)
+
+              # Show admin toolbar for quick access
               line = re.sub(r"'toolbar'\s?=>\s?.*,", "'toolbar' => true,", line)
+
+              # Enable tracking
+              line = re.sub(r"'track_mode'\s?=>\s?.*,", "'track_mode' => 'default',", line)
+
+              # Tracking code load in the footer
+              line = re.sub(r"'track_codeposition'\s?=>\s?.*,", "'track_codeposition' => 'footer',", line)
+
+              # Track only visible items
+              line = re.sub(r"'track_content'\s?=>\s?.*,", "'track_content' => 'visible',", line)
+
+              # Track internal search
+              line = re.sub(r"'track_search'\s?=>\s?.*,", "'track_search' => true,", line)
+
+              # Track 404 errors
+              line = re.sub(r"'track_404'\s?=>\s?.*,", "'track_404' => true,", line)
+
+              # https://developer.matomo.org/guides/tracking-javascript-guide#tracking-one-domain-and-its-subdomains-in-the-same-website
+              # Track accross sub-domains
+              line = re.sub(r"'track_across'\s?=>\s?.*,", "'track_across' => true,", line)
+
+              # Do not consider accessing sub-domain as outgoing link
+              line = re.sub(r"'track_across_alias'\s?=>\s?.*,", "'track_across_alias' => true,", line)
+
+              # When enabled, it will make sure to use the same visitor ID for the same visitor across several domains.
+              # This works only when this feature is enabled because the visitor ID is stored in a cookie and cannot be read on the other domain by default.
+              # When this feature is enabled, it will append a URL parameter "pk_vid" that contains the visitor ID
+              # when a user clicks on a URL that belongs to one of your domains.
+              # For this feature to work, you also have to configure which domains should be treated as local in your Piwik website settings.
+              # This feature requires Piwik 3.0.2.
+              line = re.sub(r"'track_crossdomain_linking'\s?=>\s?.*,", "'track_crossdomain_linking' => false,", line)
+
+              # DNS Prefetch for better performances ( 'dnsprefetch' => true, )
+              line = re.sub(r"'dnsprefetch'\s?=>\s?.*,", "'dnsprefetch' => true,", line)
+
+              # ask Rocket Loader to ignore the script ( in case CloudFlare is being used )
+              line = re.sub(r"'track_datacfasync'\s?=>\s?.*,", "'track_datacfasync' => true,", line)
+
+              # Disable update notices ( 'update_notice' => 'enabled' )
+              line = re.sub(r"'update_notice'\s?=>\s?.*,", "'update_notice' => 'disabled',", line)
+
               outfile.write(line)
       if not DRY_MODE:
           print("Done")
@@ -202,8 +259,8 @@ for line in vhostsList:
       cmd = "grep "+userToken+" "+OUTPUT_FILE+" >/dev/null ; echo $?;"
       sys.stdout.write("Checking settings file [ " + cmd + " ] : ")
       s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
-      output = s.read()
-      if output is None:
+      output = int(s.read())
+      if output is not 0:
           print("Oups =/")
           exit(1)
       else:
@@ -240,8 +297,8 @@ for line in vhostsList:
       sys.stdout.write("Moving plugin to vhost plugins directory [ " + cmd + " ] : ")
       if not DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
-          output = s.read()
-          if output is None:
+          output = int(s.read())
+          if output is not 0:
               print("Something went wrong.. ")
               exit(1)
           else:
@@ -257,6 +314,30 @@ for line in vhostsList:
           print("Done")
       else:
           print("Dry run =)")
+
+      # Set correct permissions
+      # Use index.php entry point's permissions as reference
+      filename = '/var/www/vhosts/' + fqdn + '/' + WEB_ROOT_DIR + '/index.php'
+      indexPermissions = oct(os.stat(filename)[ST_MODE])[-4:]
+      indexOwner = getpwuid(os.stat(filename).st_uid).pw_name
+      indexGroup = getgrgid(os.stat(filename).st_gid).gr_name
+
+      cmd = "sudo chown -R " + indexOwner + ":" + indexGroup + " " + PIWIK_PLUGIN_DIR + " " + "/var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + WP_PLUGINS_DIR + " ; echo $?"
+      sys.stdout.write("Setting the right owner [ " + cmd + " ] : ")
+      if not DRY_MODE:
+          s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
+          output = int(s.read())
+          if output is not 0:
+              print("Something went wrong.. ")
+              exit(1)
+          else:
+              print("Successfully chowned files")
+      else:
+          print("Dry run =)")
+
+      # Finally, enable Wordpress plugin
+      scriptName = "wp_enable_plugins.php"
+
 
       exit(0)
       print("\n")
