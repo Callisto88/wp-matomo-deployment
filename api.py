@@ -15,24 +15,14 @@ from grp import getgrgid
 # Config file
 import config
 
-# TODO : move all config param in config.py
 # TODO : factorize redundant code parts
 # TODO : replace hard-coded paths with vars
 
-# Some constants
-DRY_MODE = False
-LOGIN_LENGTH = 8
-PASS_LENGTH = 12
-PIWIK_PLUGIN_DIR = 'wp-piwik'
-PIWIK_PLUGIN_CONFIG_FILENAME = 'wp-piwik/classes/WP_Piwik/Settings.php'
-WP_PLUGINS_DIR = 'wp-content/plugins/'
-WEB_ROOT_DIR = 'httpdocs'
-
 # Pass generator
-def pw_gen(size = PASS_LENGTH, chars=string.ascii_letters + string.digits):
+def pw_gen(size = config.PASS_LENGTH, chars=string.ascii_letters + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
-if DRY_MODE:
+if config.DRY_MODE:
     print("Running in dry mode, nothing will be done")
 
 # First step, lists vhosts on plesk
@@ -55,9 +45,6 @@ for site in siteList:
     # siteNameList.append(ss)
 print("======================")
 
-# For file use
-# with open(vhostsList, 'rU') as f:
-
 # Iterate each vhost
 for line in vhostsList:
 
@@ -75,8 +62,8 @@ for line in vhostsList:
       strLength = len(left_text)
 
       # Limit to 8 chars
-      if strLength > LOGIN_LENGTH:
-          login = left_text[0:LOGIN_LENGTH]
+      if strLength > config.LOGIN_LENGTH:
+          login = left_text[0:config.LOGIN_LENGTH]
       else:
           login = left_text
 
@@ -88,7 +75,7 @@ for line in vhostsList:
       # Adding website returns its ID
       query = config.PIWIK_URL + "?module=API&method=SitesManager.addSite&siteName="+url+"&urls="+url+"&format=json&token_auth=" + config.TOKEN
       sys.stdout.write("Adding site to Matomo : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
 
           found = False
           for site in siteList:
@@ -133,12 +120,12 @@ for line in vhostsList:
           print("Dry run =)")
 
       # User part
-      password = pw_gen(PASS_LENGTH)
+      password = pw_gen(config.PASS_LENGTH)
       print("Generating user credentials...")
       print("Login : " + login)
       print("Pass : " + password)
       sys.stdout.write("User creation : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           query = config.PIWIK_URL + "?module=API&method=UsersManager.addUser&userLogin=" + login + "&password=" + password + "&format=json&email=info@"+fqdn+"&token_auth=" + config.TOKEN
           response = requests.post(query)
           if response.status_code == 200 and response.text:
@@ -157,7 +144,7 @@ for line in vhostsList:
               #- UsersManager.setUserAccess(userLogin, access, idSites)
               query = config.PIWIK_URL + "?module=API&method=UsersManager.setUserAccess&userLogin=" + login + "&access=admin&idSites="+siteID+"&format=json&token_auth=" + config.TOKEN
               sys.stdout.write("Set user access : ")
-              if not DRY_MODE:
+              if not config.DRY_MODE:
                   response = requests.post(query)
                   if response.status_code == 200 and response.text:
                       print("OK")
@@ -178,7 +165,7 @@ for line in vhostsList:
       # Retrieve user's API Token
       sys.stdout.write("Fetch user's token : ")
       query = config.PIWIK_URL + "?module=API&method=UsersManager.getTokenAuth&userLogin="+login+"&md5Password="+md5Pass+"&format=json&token_auth="+config.TOKEN
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           response = requests.get(query)
           if response.status_code == 200:
               jsonString = response.content
@@ -197,7 +184,7 @@ for line in vhostsList:
       OUTPUT_FILE = "config_tmp"
       sys.stdout.write("Prepare settings file : ")
 
-      with open(PIWIK_PLUGIN_CONFIG_FILENAME) as infile, open(OUTPUT_FILE, 'w') as outfile:
+      with open(config.PIWIK_PLUGIN_CONFIG_FILENAME) as infile, open(OUTPUT_FILE, 'w') as outfile:
           for line in infile:
 
               # Setup connections & auth stuff
@@ -254,7 +241,7 @@ for line in vhostsList:
               line = re.sub(r"'update_notice'\s?=>\s?.*,", "'update_notice' => 'disabled',", line)
 
               outfile.write(line)
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           print("Done")
       else:
           print("Dry mode =)")
@@ -272,7 +259,7 @@ for line in vhostsList:
 
       # Open index.php file in vhost web root directory
       # _> find out wordpress install path
-      findCmd = 'grep -h /var/www/vhosts/' + fqdn + '/' + WEB_ROOT_DIR + '/index.php -e "/wp-blog-header.php" 2>/dev/null'
+      findCmd = 'grep -h ' + config.VHOSTS_DIR + fqdn + '/' + config.WEB_ROOT_DIR + '/index.php -e "/wp-blog-header.php" 2>/dev/null'
       sys.stdout.write("Find out WP install path [ " + findCmd + " ] : ")
 
       # 2. Follow the link
@@ -294,12 +281,10 @@ for line in vhostsList:
               wpInstallPath = matchObj.group(2)
               print(matchObj.group(2))
 
-      # TODO : set correct permissions
-
       # Move file to destination
-      cmd = "sudo cp -R " + PIWIK_PLUGIN_DIR + " " + "/var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + WP_PLUGINS_DIR + " ; echo $?"
+      cmd = "sudo cp -R " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
       sys.stdout.write("Moving plugin to vhost plugins directory [ " + cmd + " ] : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
           output = int(s.read())
           if output is not 0:
@@ -310,9 +295,9 @@ for line in vhostsList:
       else:
           print("Dry run =)")
 
-      cmd = "sudo cp " + OUTPUT_FILE + " " + "/var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + WP_PLUGINS_DIR + PIWIK_PLUGIN_CONFIG_FILENAME + "; rm config_tmp"
+      cmd = "sudo cp " + OUTPUT_FILE + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + config.PIWIK_PLUGIN_CONFIG_FILENAME + "; rm config_tmp"
       sys.stdout.write("Updating Matomoto settings file [ " + cmd + " ] : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
           output = s.read()
           print("Done")
@@ -321,14 +306,15 @@ for line in vhostsList:
 
       # Set correct permissions
       # Use index.php entry point's permissions as reference
-      filename = '/var/www/vhosts/' + fqdn + '/' + WEB_ROOT_DIR + '/index.php'
+      filename = config.VHOSTS_DIR + fqdn + '/' + config.WEB_ROOT_DIR + '/index.php'
       indexPermissions = oct(os.stat(filename)[ST_MODE])[-4:]
       indexOwner = getpwuid(os.stat(filename).st_uid).pw_name
       indexGroup = getgrgid(os.stat(filename).st_gid).gr_name
 
-      cmd = "sudo chown -R " + indexOwner + ":" + indexGroup + " " + PIWIK_PLUGIN_DIR + " " + "/var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + WP_PLUGINS_DIR + " ; echo $?"
+      # set correct owner
+      cmd = "sudo chown -R " + indexOwner + ":" + indexGroup + " " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
       sys.stdout.write("Setting the right owner [ " + cmd + " ] : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
           output = int(s.read())
           if output is not 0:
@@ -341,9 +327,9 @@ for line in vhostsList:
 
       # Prepare payload for plugin activation
       scriptName = "wp_enable_plugins.php"
-      cmd = "sudo cp " + scriptName + " /var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + "; echo $?"
+      cmd = "sudo cp " + scriptName + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + "; echo $?"
       sys.stdout.write("Preparing payload for plugin activation [ " + cmd + " ] : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
           output = int(s.read())
           if output is not 0:
@@ -356,9 +342,9 @@ for line in vhostsList:
 
       # Enable Matomo plugin
       scriptName = "wp_enable_plugins.php"
-      cmd = "php /var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + scriptName
+      cmd = "php " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + scriptName
       sys.stdout.write("Activating Matomo plugin [ " + cmd + " ] : ")
-      if not DRY_MODE:
+      if not config.DRY_MODE:
           s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
           print(s.read())
       else:
