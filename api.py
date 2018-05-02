@@ -335,9 +335,30 @@ for line in vhostsList:
       else:
           print("Dry run =)")
 
-      # Finally, enable Wordpress plugin
+      # Prepare payload for plugin activation
       scriptName = "wp_enable_plugins.php"
+      cmd = "sudo cp " + scriptName + " /var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + "; echo $?"
+      sys.stdout.write("Preparing payload for plugin activation [ " + cmd + " ] : ")
+      if not DRY_MODE:
+          s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
+          output = int(s.read())
+          if output is not 0:
+              print("Something went wrong.. ")
+              exit(1)
+          else:
+              print("Payload ready for execution")
+      else:
+          print("Dry run =)")
 
+      # Enable Matomo plugin
+      scriptName = "wp_enable_plugins.php"
+      cmd = "php /var/www/vhosts/" + fqdn + "/httpdocs" + wpInstallPath + scriptName
+      sys.stdout.write("Activating Matomo plugin [ " + cmd + " ] : ")
+      if not DRY_MODE:
+          s = subprocess.Popen([cmd], stdout=subprocess.PIPE, shell=True).stdout
+          print(s.read())
+      else:
+          print("Dry run =)")
 
       exit(0)
       print("\n")
