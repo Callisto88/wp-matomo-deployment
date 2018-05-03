@@ -64,6 +64,9 @@ for site in siteList:
     # siteNameList.append(ss)
 print("======================")
 
+vhostsList = []
+vhostsList.append("lacotel.ch")
+
 # Iterate each vhost
 for line in vhostsList:
 
@@ -73,7 +76,6 @@ for line in vhostsList:
     else:
         fqdn = line
         url = 'www.' + line
-
         print("\n[ " + fqdn + " ]")
 
         # Get the part before the dot
@@ -222,6 +224,9 @@ for line in vhostsList:
                 # Show admin toolbar for quick access
                 line = re.sub(r"'toolbar'\s?=>\s?.*,", "'toolbar' => true,", line)
 
+                line = re.sub(r"'plugin_display_name'\s?=>\s?.*,", "'plugin_display_name' => '"+config.DISPLAY_NAME+"',", line)
+                line = re.sub(r"'piwik_shortcut'\s?=>\s?.*,", "'piwik_shortcut' => true,", line)
+
                 # Enable tracking
                 line = re.sub(r"'track_mode'\s?=>\s?.*,", "'track_mode' => 'default',", line)
 
@@ -288,11 +293,17 @@ for line in vhostsList:
         # \s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);
         # Parse command output
         # pattern = "\s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);"
+        wpFound = False
         for line in entryPointLines:
             matchObj = re.match(r"\s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);", line, flags=0)
             if matchObj:
                 wpInstallPath = matchObj.group(2)
+                wpFound = True
                 print(matchObj.group(2))
+
+        if not wpFound:
+            print("No Wordpress instances out there, skipping this vhost")
+            continue
 
         # Move file to destination
         cmd = "sudo cp -R " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
