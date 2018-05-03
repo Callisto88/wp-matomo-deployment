@@ -15,10 +15,6 @@ from grp import getgrgid
 # Config file
 import config
 
-
-# TODO : factorize redundant code parts
-# TODO : replace hard-coded paths with vars
-
 # Pass generator
 def pw_gen(size=config.PASS_LENGTH, chars=string.ascii_letters + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
