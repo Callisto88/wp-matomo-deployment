@@ -8,6 +8,7 @@ import requests
 import subprocess
 import sys
 import hashlib
+import csv
 from time import sleep
 from pwd import getpwuid
 from grp import getgrgid
@@ -64,8 +65,9 @@ for site in siteList:
     # siteNameList.append(ss)
 print("======================")
 
-vhostsList = []
-vhostsList.append("lacotel.ch")
+# Debug
+# vhostsList = []
+# vhostsList.append("lacotel.ch")
 
 # Iterate each vhost
 for line in vhostsList:
@@ -144,6 +146,17 @@ for line in vhostsList:
 
         # User part
         password = pw_gen(config.PASS_LENGTH)
+
+        data = []
+        data.append(url)
+        data.append(login)
+        data.append(password)
+
+        # Save credentials
+        with open(config.CREDENTIALS_FILE, 'a') as resultFile:
+            wr = csv.writer(resultFile, dialect='excel')
+            wr.writerow(data)
+
         print("Generating user credentials...")
         print("Login : " + login)
         print("Pass : " + password)
