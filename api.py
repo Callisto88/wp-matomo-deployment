@@ -1,20 +1,22 @@
-import os
-from stat import *
+import csv
+import hashlib
 import json
+import os
 import random
 import re
 import string
-import requests
 import subprocess
 import sys
-import hashlib
-import csv
-from time import sleep
-from pwd import getpwuid
 from grp import getgrgid
+from pwd import getpwuid
+from stat import *
+from time import sleep
+
+import requests
 
 # Config file
 import config
+
 
 # Pass generator
 def pw_gen(size=config.PASS_LENGTH, chars=string.ascii_letters + string.digits):
@@ -47,7 +49,8 @@ if config.DRY_MODE:
 
 # First step, lists vhosts on plesk
 # https://support.plesk.com/hc/en-us/articles/213368629-How-to-get-a-list-of-Plesk-domains-and-their-IP-addresses
-command = "MYSQL_PWD=`sudo cat /etc/psa/.psa.shadow` mysql -u admin -Dpsa -s -r -e\"SELECT dom.name FROM domains dom LEFT JOIN DomainServices d ON (dom.id = d.dom_id AND d.type = 'web')\""
+command = "MYSQL_PWD=`sudo cat /etc/psa/.psa.shadow` mysql -u admin -Dpsa -s -r -e\"SELECT dom.name FROM domains " \
+          "dom LEFT JOIN DomainServices d ON (dom.id = d.dom_id AND d.type = 'web')\""
 s = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True).stdout
 vhostsList = s.read().splitlines()
 
@@ -66,8 +69,12 @@ for site in siteList:
 print("======================")
 
 # Debug
-# vhostsList = []
-# vhostsList.append("lacotel.ch")
+vhostsList = []
+vhostsList.append("sepvoyages.com")
+vhostsList.append("acores.ch")
+vhostsList.append("swissfours.ch")
+vhostsList.append("arfcheminee.ch")
+vhostsList.append("medianevoyance.com")
 
 # Iterate each vhost
 for line in vhostsList:
@@ -96,7 +103,8 @@ for line in vhostsList:
         #                      settingValues='', excludeUnknownUrls='')
 
         # Adding website returns its ID
-        query = config.PIWIK_URL + "?module=API&method=SitesManager.addSite&siteName=" + url + "&urls=" + url + "&format=json&token_auth=" + config.TOKEN
+        query = config.PIWIK_URL + "?module=API&method=SitesManager.addSite&siteName=" + url + "&urls=" + url \
+                + "&format=json&token_auth=" + config.TOKEN
         sys.stdout.write("Adding site to Matomo : ")
         if not config.DRY_MODE:
 
@@ -162,7 +170,8 @@ for line in vhostsList:
         print("Pass : " + password)
         sys.stdout.write("User creation : ")
         if not config.DRY_MODE:
-            query = config.PIWIK_URL + "?module=API&method=UsersManager.addUser&userLogin=" + login + "&password=" + password + "&format=json&email=info@" + fqdn + "&token_auth=" + config.TOKEN
+            query = config.PIWIK_URL + "?module=API&method=UsersManager.addUser&userLogin=" + login \
+                    + "&password=" + password + "&format=json&email=info@" + fqdn + "&token_auth=" + config.TOKEN
             response = requests.post(query)
             if response.status_code == 200 and response.text:
 
@@ -178,7 +187,8 @@ for line in vhostsList:
 
                 # Allow this user to manager his own site
                 # - UsersManager.setUserAccess(userLogin, access, idSites)
-                query = config.PIWIK_URL + "?module=API&method=UsersManager.setUserAccess&userLogin=" + login + "&access=admin&idSites=" + siteID + "&format=json&token_auth=" + config.TOKEN
+                query = config.PIWIK_URL + "?module=API&method=UsersManager.setUserAccess&userLogin=" \
+                        + login + "&access=admin&idSites=" + siteID + "&format=json&token_auth=" + config.TOKEN
                 sys.stdout.write("Set user access : ")
                 if not config.DRY_MODE:
                     response = requests.post(query)
@@ -200,7 +210,8 @@ for line in vhostsList:
 
         # Retrieve user's API Token
         sys.stdout.write("Fetch user's token : ")
-        query = config.PIWIK_URL + "?module=API&method=UsersManager.getTokenAuth&userLogin=" + login + "&md5Password=" + md5Pass + "&format=json&token_auth=" + config.TOKEN
+        query = config.PIWIK_URL + "?module=API&method=UsersManager.getTokenAuth&userLogin=" + login \
+                + "&md5Password=" + md5Pass + "&format=json&token_auth=" + config.TOKEN
         if not config.DRY_MODE:
             response = requests.get(query)
             if response.status_code == 200:
@@ -237,7 +248,8 @@ for line in vhostsList:
                 # Show admin toolbar for quick access
                 line = re.sub(r"'toolbar'\s?=>\s?.*,", "'toolbar' => true,", line)
 
-                line = re.sub(r"'plugin_display_name'\s?=>\s?.*,", "'plugin_display_name' => '"+config.DISPLAY_NAME+"',", line)
+                line = re.sub(r"'plugin_display_name'\s?=>\s?.*,",
+                              "'plugin_display_name' => '" + config.DISPLAY_NAME + "',", line)
                 line = re.sub(r"'piwik_shortcut'\s?=>\s?.*,", "'piwik_shortcut' => true,", line)
 
                 # Enable tracking
@@ -255,18 +267,22 @@ for line in vhostsList:
                 # Track 404 errors
                 line = re.sub(r"'track_404'\s?=>\s?.*,", "'track_404' => true,", line)
 
-                # https://developer.matomo.org/guides/tracking-javascript-guide#tracking-one-domain-and-its-subdomains-in-the-same-website
+                # https://developer.matomo.org/guides/tracking-javascript-guide#tracking-one-domain-and-its-subdomains
+                # -in-the-same-website
                 # Track accross sub-domains
                 line = re.sub(r"'track_across'\s?=>\s?.*,", "'track_across' => true,", line)
 
                 # Do not consider accessing sub-domain as outgoing link
                 line = re.sub(r"'track_across_alias'\s?=>\s?.*,", "'track_across_alias' => true,", line)
 
-                # When enabled, it will make sure to use the same visitor ID for the same visitor across several domains.
-                # This works only when this feature is enabled because the visitor ID is stored in a cookie and cannot be read on the other domain by default.
+                # When enabled, it will make sure to use the same visitor ID for the same visitor across several
+                #  domains.
+                # This works only when this feature is enabled because the visitor ID is stored in a cookie and cannot
+                #  be read on the other domain by default.
                 # When this feature is enabled, it will append a URL parameter "pk_vid" that contains the visitor ID
                 # when a user clicks on a URL that belongs to one of your domains.
-                # For this feature to work, you also have to configure which domains should be treated as local in your Piwik website settings.
+                # For this feature to work, you also have to configure which domains should be treated as local
+                #  in your Piwik website settings.
                 # This feature requires Piwik 3.0.2.
                 line = re.sub(r"'track_crossdomain_linking'\s?=>\s?.*,", "'track_crossdomain_linking' => false,", line)
 
@@ -298,7 +314,8 @@ for line in vhostsList:
         # ...
         # require( dirname( __FILE__ ) . '/site/wp-blog-header.php' );
         # require( dirname( __FILE__ ) . '/wp-blog-header.php' );
-        findCmd = 'grep -h ' + config.VHOSTS_DIR + fqdn + '/' + config.WEB_ROOT_DIR + '/index.php -e "/wp-blog-header.php" 2>/dev/null'
+        findCmd = 'grep -h ' + config.VHOSTS_DIR + fqdn + '/' + config.WEB_ROOT_DIR\
+                  + '/index.php -e "/wp-blog-header.php" 2>/dev/null'
         sys.stdout.write("Find out WP install path [ " + findCmd + " ] : ")
         output = runCommand(findCmd, False)
         entryPointLines = output.splitlines()
@@ -319,7 +336,8 @@ for line in vhostsList:
             continue
 
         # Move file to destination
-        cmd = "sudo cp -R " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
+        cmd = "sudo cp -R " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR\
+              + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
         sys.stdout.write("Moving plugin to vhost plugins directory : ")
         if config.DRY_MODE:
             print("Dry run =)")
@@ -327,7 +345,8 @@ for line in vhostsList:
             if runCommand(cmd, True) is not True:
                 exit(1)
 
-        cmd = "sudo cp " + OUTPUT_FILE + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + config.PIWIK_PLUGIN_CONFIG_FILENAME + "; rm config_tmp"
+        cmd = "sudo cp " + OUTPUT_FILE + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath\
+              + config.WP_PLUGINS_DIR + config.PIWIK_PLUGIN_CONFIG_FILENAME + "; rm config_tmp"
         sys.stdout.write("Updating Matomoto settings file : ")
         if config.DRY_MODE:
             print("Dry run =)")
@@ -342,7 +361,9 @@ for line in vhostsList:
         indexGroup = getgrgid(os.stat(filename).st_gid).gr_name
 
         # set correct owner
-        cmd = "sudo chown -R " + indexOwner + ":" + indexGroup + " " + config.PIWIK_PLUGIN_DIR + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.WP_PLUGINS_DIR + " ; echo $?"
+        cmd = "sudo chown -R " + indexOwner + ":" + indexGroup + " " + config.PIWIK_PLUGIN_DIR\
+              + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath \
+              + config.WP_PLUGINS_DIR + " ; echo $?"
         sys.stdout.write("Setting the right owner : ")
         if config.DRY_MODE:
             print("Dry run =)")
@@ -351,7 +372,8 @@ for line in vhostsList:
                 exit(1)
 
         # Prepare payload for plugin activation
-        cmd = "sudo cp " + config.SCRIPT_PLUGIN_ENABLER + " " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + "; echo $?"
+        cmd = "sudo cp " + config.SCRIPT_PLUGIN_ENABLER + " " + config.VHOSTS_DIR + fqdn + "/"\
+              + config.WEB_ROOT_DIR + wpInstallPath + "; echo $?"
         sys.stdout.write("Preparing payload for plugin activation [ " + cmd + " ] : ")
         if config.DRY_MODE:
             print("Dry run =)")
@@ -360,7 +382,9 @@ for line in vhostsList:
                 exit(1)
 
         # Enable Matomo plugin
-        cmd = "php " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath + config.SCRIPT_PLUGIN_ENABLER + " " + config.PIWIK_PLUGIN_DIR + "/wp-piwik.php"
+        sleep(1)
+        cmd = "php " + config.VHOSTS_DIR + fqdn + "/" + config.WEB_ROOT_DIR + wpInstallPath\
+              + config.SCRIPT_PLUGIN_ENABLER + " " + config.PIWIK_PLUGIN_DIR + "/wp-piwik.php"
         sys.stdout.write("Activating Matomo plugin [ " + cmd + " ] : ")
         if config.DRY_MODE:
             print("Dry run =)")
