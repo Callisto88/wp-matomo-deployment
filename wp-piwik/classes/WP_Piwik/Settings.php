@@ -57,8 +57,8 @@ class Settings {
 				'editor' => true
 			),
 			'perpost_stats' => true,
-			'plugin_display_name' => 'Statistiques',
-			'piwik_shortcut' => false,
+			'plugin_display_name' => 'TriStats',
+			'piwik_shortcut' => true,
 			'shortcodes' => false,
 			// User settings: Tracking configuration
 			'track_mode' => 'disabled',

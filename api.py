@@ -70,11 +70,7 @@ print("======================")
 
 # Debug
 vhostsList = []
-vhostsList.append("sepvoyages.com")
-vhostsList.append("acores.ch")
-vhostsList.append("swissfours.ch")
-vhostsList.append("arfcheminee.ch")
-vhostsList.append("medianevoyance.com")
+vhostsList.append("trisinformatique.com")
 
 # Iterate each vhost
 for line in vhostsList:
@@ -155,16 +151,6 @@ for line in vhostsList:
         # User part
         password = pw_gen(config.PASS_LENGTH)
 
-        data = []
-        data.append(url)
-        data.append(login)
-        data.append(password)
-
-        # Save credentials
-        with open(config.CREDENTIALS_FILE, 'a') as resultFile:
-            wr = csv.writer(resultFile, dialect='excel')
-            wr.writerow(data)
-
         print("Generating user credentials...")
         print("Login : " + login)
         print("Pass : " + password)
@@ -181,6 +167,34 @@ for line in vhostsList:
                     if jsonStr["result"] is not None:
                         if jsonStr["result"] == 'success':
                             print("OK")
+
+                            # Save credentials to CSV
+
+                            # Headers
+                            # url,type,username,password,hostname,extra,name,grouping
+                            # https://stats.trisinformatique.com/index.php,server,server1username,server1password,
+                            # stats.trisinformatique.com,,Tris Analytics - username1,Tris Analytics
+                            csvHeaders = ['url', 'type', 'username', 'password', 'hostname', 'extra', 'name',
+                                          'grouping']
+
+                            # Data
+                            data = []
+                            data.append(config.PIWIK_URL)
+                            data.append('server')
+                            data.append(login)
+                            data.append(password)
+                            data.append(config.PIWIK_URL)
+                            data.append('')
+                            data.append(config.DISPLAY_NAME + " - " + url)
+                            data.append(config.DISPLAY_NAME)
+
+                            with open(config.CREDENTIALS_FILE, 'a') as resultFile:
+                                wr = csv.writer(resultFile, dialect='excel')
+                                wr.writerow(csvHeaders)
+                            with open(config.CREDENTIALS_FILE, 'a') as resultFile:
+                                wr = csv.writer(resultFile, dialect='excel')
+                                wr.writerow(data)
+
                         else:
                             print(jsonStr["result"] + " => " + jsonStr["message"])
                             exit(1)
