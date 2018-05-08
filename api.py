@@ -116,7 +116,7 @@ for line in vhostsList:
                     print(url + " already exists in Matomo")
 
             if found == True:
-                break
+                continue
 
             # Register new website
             response = requests.post(query)
