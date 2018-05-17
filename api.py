@@ -59,7 +59,12 @@ def hasActiveWpInstance():
         matchObj = re.match(r"\s?(require\b|require_once\b)\(\s?.*'(.*)wp-blog-header.php'\s?\);", line, flags=0)
         if matchObj:
             wpInstallPath = matchObj.group(2)
-            print(matchObj.group(2))
+
+            # Check in case path contains a dot ( wp old way for entry point ) [ ./wp- .. ]
+            if wpInstallPath[0] == "." in wpInstallPath:
+                wpInstallPath = wpInstallPath[1:]
+
+            print(wpInstallPath)
 
             return wpInstallPath
 
@@ -88,15 +93,44 @@ def runCommand(cmd, bool):
         return output
 
 
+def giveAdminAccess(siteID, login):
+
+    # Allow this user to manager his own site
+    # - UsersManager.setUserAccess(userLogin, access, idSites)
+    query = config.PIWIK_URL + "?module=API&method=UsersManager.setUserAccess&userLogin=" \
+            + login + "&access=admin&idSites=" + siteID + "&format=json&token_auth=" + config.TOKEN
+    sys.stdout.write("Set user access : ")
+    if not config.DRY_MODE:
+        response = requests.post(query)
+        if response.status_code == 200 and response.text:
+            print("OK")
+
+            return True
+        else:
+            print("Oups =\ ")
+            exit(1)
+    else:
+        print("Dry run =)")
+
+
 if config.DRY_MODE:
     print("Running in dry mode, nothing will be done")
 
-# First step, lists vhosts on plesk
-# https://support.plesk.com/hc/en-us/articles/213368629-How-to-get-a-list-of-Plesk-domains-and-their-IP-addresses
-command = "MYSQL_PWD=`sudo cat /etc/psa/.psa.shadow` mysql -u admin -Dpsa -s -r -e\"SELECT dom.name FROM domains " \
-          "dom LEFT JOIN DomainServices d ON (dom.id = d.dom_id AND d.type = 'web')\""
-s = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True).stdout
-vhostsList = s.read().splitlines()
+vhostsList = []
+argCount = len(sys.argv)
+
+if argCount == 2:
+    vhostsList.append(str(sys.argv[1]))
+elif argCount == 1:
+    # Lists vhosts on plesk
+    # https://support.plesk.com/hc/en-us/articles/213368629-How-to-get-a-list-of-Plesk-domains-and-their-IP-addresses
+    command = "MYSQL_PWD=`sudo cat /etc/psa/.psa.shadow` mysql -u admin -Dpsa -s -r -e\"SELECT dom.name FROM domains " \
+              "dom LEFT JOIN DomainServices d ON (dom.id = d.dom_id AND d.type = 'web')\""
+    s = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True).stdout
+    vhostsList = s.read().splitlines()
+else:
+    print("This script expect either 0 (all vhosts) or 1 parameter (given vhost)")
+    exit(1)
 
 # Get existing site list
 query = config.PIWIK_URL + "?module=API&method=SitesManager.getAllSites&format=json&token_auth=" + config.TOKEN
@@ -249,24 +283,15 @@ for line in vhostsList:
                             wr = csv.writer(resultFile, dialect='excel')
                             wr.writerow(data)
 
+                        # Allow this user to manager his own site
+                        giveAdminAccess(siteID, login)
+                        giveAdminAccess(siteID, config.ADMIN_USER)
+
                     else:
                         print(jsonStr["result"] + " => " + jsonStr["message"])
-                        exit(1)
+                        print("Error while processing " + url + ", skipping this one")
+                        continue
 
-            # Allow this user to manager his own site
-            # - UsersManager.setUserAccess(userLogin, access, idSites)
-            query = config.PIWIK_URL + "?module=API&method=UsersManager.setUserAccess&userLogin=" \
-                    + login + "&access=admin&idSites=" + siteID + "&format=json&token_auth=" + config.TOKEN
-            sys.stdout.write("Set user access : ")
-            if not config.DRY_MODE:
-                response = requests.post(query)
-                if response.status_code == 200 and response.text:
-                    print("OK")
-                else:
-                    print("Oups =\ ")
-                    exit(1)
-            else:
-                print("Dry run =)")
         else:
             print("Oups =\ [ " + response.status_code + " ] " + response.headers)
             exit(1)
